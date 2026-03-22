@@ -163,6 +163,66 @@ export async function getRecentTransferLogs(
   }
 }
 
+/** Scan recent blocks for native STT transfers involving this address */
+export async function getRecentNativeTransfers(
+  address: `0x${string}`,
+  limit: number = 20
+): Promise<{ hash: string; blockNumber: number; from: string; to: string; value: bigint; timestamp: number }[]> {
+  try {
+    const currentBlock = await getBlockNumber();
+    const results: { hash: string; blockNumber: number; from: string; to: string; value: bigint; timestamp: number }[] = [];
+    const addrLower = address.toLowerCase();
+
+    // Scan blocks in batches. Start with recent blocks, go further if needed.
+    // Somnia has fast blocks (~1s), sample ~50 blocks at a time.
+    const batchSize = 10;
+    const maxBlocks = 300; // scan up to 300 blocks (~5 min)
+    let scanned = 0;
+
+    while (results.length < limit && scanned < maxBlocks) {
+      const blockPromises: Promise<void>[] = [];
+      for (let i = 0; i < batchSize && scanned < maxBlocks; i++) {
+        const blockNum = currentBlock - BigInt(scanned);
+        if (blockNum < 0n) break;
+        scanned++;
+
+        blockPromises.push(
+          publicClient.getBlock({ blockNumber: blockNum, includeTransactions: true })
+            .then((block) => {
+              for (const tx of block.transactions) {
+                if (typeof tx === 'string') continue;
+                const from = (tx.from || '').toLowerCase();
+                const to = (tx.to || '').toLowerCase();
+                if (from !== addrLower && to !== addrLower) continue;
+                const val = tx.value ?? 0n;
+                if (val === 0n) continue; // skip contract calls
+                results.push({
+                  hash: tx.hash,
+                  blockNumber: Number(blockNum),
+                  from: tx.from,
+                  to: tx.to || '',
+                  value: val,
+                  timestamp: Number(block.timestamp) * 1000,
+                });
+              }
+            })
+            .catch(() => {}) // skip failed blocks
+        );
+      }
+      await Promise.all(blockPromises);
+
+      // If we found some results, no need to scan further
+      if (results.length > 0) break;
+    }
+
+    return results
+      .sort((a, b) => b.blockNumber - a.blockNumber)
+      .slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
 export async function getTokenBalance(
   tokenAddress: `0x${string}`,
   walletAddress: `0x${string}`

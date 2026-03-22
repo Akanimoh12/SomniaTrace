@@ -10,7 +10,7 @@ import {
 import type { ReactivityEvent } from '@/types/reactivity';
 import type { TxEvent } from '@/types/transaction';
 import { addressToTopic, topicToAddress, weiToUSD } from '@/lib/formatters';
-import { getRecentTransferLogs } from '@/lib/rpc';
+import { getRecentTransferLogs, getRecentNativeTransfers } from '@/lib/rpc';
 
 export function useAddressFeed(
   address: string | null,
@@ -71,8 +71,13 @@ export function useAddressFeed(
 
     const fetchHistory = async () => {
       try {
-        const logs = await getRecentTransferLogs(address as `0x${string}`, 20);
-        const txEvents: TxEvent[] = logs.map((log) => {
+        // Fetch ERC-20 logs and native STT transfers in parallel
+        const [logs, nativeTxs] = await Promise.all([
+          getRecentTransferLogs(address as `0x${string}`, 20),
+          getRecentNativeTransfers(address as `0x${string}`, 20),
+        ]);
+
+        const erc20Events: TxEvent[] = logs.map((log) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const args = log.args as any;
           const from = (args?.from as string) || '';
@@ -99,6 +104,34 @@ export function useAddressFeed(
             emitter: log.address,
           };
         });
+
+        const nativeEvents: TxEvent[] = nativeTxs.map((ntx) => {
+          const isIncoming = ntx.to.toLowerCase() === address.toLowerCase();
+          return {
+            hash: ntx.hash,
+            blockNumber: ntx.blockNumber,
+            timestamp: ntx.timestamp || Date.now(),
+            from: ntx.from,
+            to: ntx.to,
+            value: ntx.value,
+            valueUSD: weiToUSD(ntx.value, 18, 0.01),
+            token: 'native',
+            tokenSymbol: 'STT',
+            type: 'stt' as const,
+            direction: isIncoming ? 'incoming' as const : 'outgoing' as const,
+          };
+        });
+
+        // Merge, deduplicate by hash, sort by block
+        const seen = new Set<string>();
+        const txEvents = [...erc20Events, ...nativeEvents]
+          .filter(tx => {
+            if (seen.has(tx.hash)) return false;
+            seen.add(tx.hash);
+            return true;
+          })
+          .sort((a, b) => b.blockNumber - a.blockNumber)
+          .slice(0, 20);
 
         setEvents(txEvents);
         setIsLoading(false);
