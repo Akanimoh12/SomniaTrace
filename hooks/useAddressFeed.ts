@@ -20,6 +20,8 @@ export function useAddressFeed(
   const { subscribe, unsubscribe } = useReactivity();
   const subIdsRef = useRef<string[]>([]);
   const [events, setEvents] = useState<TxEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isEmpty, setIsEmpty] = useState(false);
 
   const parseEvent = useCallback((event: ReactivityEvent, watchAddr: string): TxEvent | null => {
     if (!event.topics || event.topics.length < 3) return null;
@@ -59,8 +61,13 @@ export function useAddressFeed(
   useEffect(() => {
     if (!address) {
       setEvents([]);
+      setIsLoading(false);
+      setIsEmpty(false);
       return;
     }
+
+    setIsLoading(true);
+    setIsEmpty(false);
 
     const fetchHistory = async () => {
       try {
@@ -94,19 +101,28 @@ export function useAddressFeed(
         });
 
         setEvents(txEvents);
-        // Batch-load all at once for instant bubble display
-        if (txEvents.length > 0 && onBatchLoad) {
-          onBatchLoad(txEvents);
+        setIsLoading(false);
+        if (txEvents.length === 0) {
+          setIsEmpty(true);
         } else {
-          txEvents.forEach(tx => onTransaction?.(tx));
+          setIsEmpty(false);
+          // Batch-load all at once for instant bubble display
+          if (onBatchLoad) {
+            onBatchLoad(txEvents);
+          } else {
+            txEvents.forEach(tx => onTransaction?.(tx));
+          }
         }
       } catch (err) {
         console.warn('[AddressFeed] Failed to fetch history:', err);
+        setIsLoading(false);
+        setIsEmpty(true);
       }
     };
 
     fetchHistory();
-  }, [address, onTransaction]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
 
   // Subscribe to live events for this address
   useEffect(() => {
@@ -162,5 +178,5 @@ export function useAddressFeed(
     };
   }, [address, subscribe, unsubscribe, parseEvent, onTransaction]);
 
-  return events;
+  return { events, isLoading, isEmpty };
 }

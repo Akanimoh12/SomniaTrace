@@ -119,7 +119,7 @@ export default function BubbleCanvas({ mode, address, onBubbleClick }: BubbleCan
 
   // Use feeds
   useGlobalFeed(mode === 'global' ? handleGlobalTx : undefined);
-  useAddressFeed(
+  const { isLoading: addressLoading, isEmpty: addressEmpty } = useAddressFeed(
     mode === 'address' ? address : null,
     handleAddressTx,
     handleAddressBatch,
@@ -219,19 +219,39 @@ export default function BubbleCanvas({ mode, address, onBubbleClick }: BubbleCan
         )}
       </div>
 
-      {/* Empty state */}
+      {/* Empty / Loading / No-results state */}
       {renderNodes.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center z-10">
           <div className="text-center">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full border border-[#1A1A1A] flex items-center justify-center">
-              <div className="w-4 h-4 rounded-full bg-[#00FFA3] animate-ping" />
-            </div>
-            <p className="text-[#666666] text-lg font-mono">
-              {mode === 'global' ? 'Connecting to Somnia...' : 'Fetching wallet transactions...'}
-            </p>
-            <p className="text-[#444444] text-sm font-mono mt-1">
-              {mode === 'global' ? 'Polling chain for live transactions' : 'Scanning recent blocks'}
-            </p>
+            {mode === 'address' && addressEmpty ? (
+              <>
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full border border-[#333] flex items-center justify-center">
+                  <span className="text-2xl">&#x1F50D;</span>
+                </div>
+                <p className="text-[#999] text-lg font-mono">
+                  No ERC-20 transfers found
+                </p>
+                <p className="text-[#555] text-sm font-mono mt-1">
+                  This wallet has no recent token transfers on Somnia
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full border border-[#1A1A1A] flex items-center justify-center">
+                  <div className="w-4 h-4 rounded-full bg-[#00FFA3] animate-ping" />
+                </div>
+                <p className="text-[#666666] text-lg font-mono">
+                  {mode === 'global' ? 'Connecting to Somnia...' : 'Fetching wallet transactions...'}
+                </p>
+                <p className="text-[#444444] text-sm font-mono mt-1">
+                  {mode === 'global'
+                    ? 'Polling chain for live transactions'
+                    : addressLoading
+                      ? 'Scanning blocks (this may take a moment for inactive wallets)'
+                      : 'Waiting for live transfers...'}
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}

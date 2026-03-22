@@ -40,12 +40,13 @@ export function topicToAddress(topic: string): string {
 }
 
 export function valueToBubbleRadius(valueUSD: number, minR: number, maxR: number): number {
-  // Adaptive scale: even tiny testnet values get decent bubbles
   if (valueUSD <= 0) return minR;
-  // Use a shifted log so even $0.01 gets ~30% of range
-  const logVal = Math.log10(valueUSD + 0.1) + 2; // shift so 0.01 → ~0.0, 1→2, 100→4, 10k→6
-  const logMax = 6; // $10k
-  const ratio = Math.min(Math.max(logVal / logMax, 0.25), 1);
+  // Use a shifted log so even tiny testnet values get visible bubbles,
+  // but there's still clear size difference across value ranges.
+  // $0.001 → ~15%, $0.01 → ~25%, $0.1 → ~38%, $1 → ~50%, $100 → ~67%, $10k → ~90%
+  const logVal = Math.log10(valueUSD + 0.001) + 3; // shift: 0.001→0, 0.01→1, 0.1→2, 1→3, 10→4, 100→5, 10k→7
+  const logMax = 7;
+  const ratio = Math.min(Math.max(logVal / logMax, 0.15), 1);
   return minR + ratio * (maxR - minR);
 }
 

@@ -103,46 +103,61 @@ export async function getFirstInboundTransfer(
   }
 }
 
+const TRANSFER_EVENT_ABI = {
+  type: 'event' as const,
+  name: 'Transfer' as const,
+  inputs: [
+    { type: 'address' as const, name: 'from' as const, indexed: true },
+    { type: 'address' as const, name: 'to' as const, indexed: true },
+    { type: 'uint256' as const, name: 'value' as const, indexed: false },
+  ],
+};
+
+async function fetchTransferLogs(
+  address: `0x${string}`,
+  fromBlock: bigint,
+  limit: number,
+) {
+  const [outLogs, inLogs] = await Promise.all([
+    publicClient.getLogs({
+      event: TRANSFER_EVENT_ABI,
+      args: { from: address },
+      fromBlock,
+      toBlock: 'latest',
+    }).catch(() => []),
+    publicClient.getLogs({
+      event: TRANSFER_EVENT_ABI,
+      args: { to: address },
+      fromBlock,
+      toBlock: 'latest',
+    }).catch(() => []),
+  ]);
+
+  return [...outLogs, ...inLogs]
+    .sort((a, b) => Number(b.blockNumber) - Number(a.blockNumber))
+    .slice(0, limit);
+}
+
 export async function getRecentTransferLogs(
   address: `0x${string}`,
   limit: number = 20
 ) {
   try {
     const currentBlock = await getBlockNumber();
-    // Use a smaller range for faster response
-    const fromBlock = currentBlock > 2000n ? currentBlock - 2000n : 0n;
 
-    const transferEvent = {
-      type: 'event' as const,
-      name: 'Transfer' as const,
-      inputs: [
-        { type: 'address' as const, name: 'from' as const, indexed: true },
-        { type: 'address' as const, name: 'to' as const, indexed: true },
-        { type: 'uint256' as const, name: 'value' as const, indexed: false },
-      ],
-    };
+    // Progressive scan: try increasingly wider ranges.
+    // Somnia has ~1s blocks, so 50k ≈ 14h, 200k ≈ 2.3 days, 500k ≈ 5.8 days.
+    const ranges = [50_000n, 200_000n, 500_000n];
 
-    // Fetch both directions in parallel
-    const [outLogs, inLogs] = await Promise.all([
-      publicClient.getLogs({
-        event: transferEvent,
-        args: { from: address },
-        fromBlock,
-        toBlock: 'latest',
-      }).catch(() => []),
-      publicClient.getLogs({
-        event: transferEvent,
-        args: { to: address },
-        fromBlock,
-        toBlock: 'latest',
-      }).catch(() => []),
-    ]);
+    for (const range of ranges) {
+      const fromBlock = currentBlock > range ? currentBlock - range : 0n;
+      const logs = await fetchTransferLogs(address, fromBlock, limit);
+      if (logs.length > 0) return logs;
+      // If we already scanned from genesis, stop
+      if (fromBlock === 0n) break;
+    }
 
-    const allLogs = [...outLogs, ...inLogs]
-      .sort((a, b) => Number(b.blockNumber) - Number(a.blockNumber))
-      .slice(0, limit);
-
-    return allLogs;
+    return [];
   } catch {
     return [];
   }

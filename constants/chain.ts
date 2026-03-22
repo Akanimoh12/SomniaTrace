@@ -94,6 +94,12 @@ export const COLORS = {
   purple: '#7B61FF',
   danger: '#FF4D4D',
   amber: '#FFB800',
+  cyan: '#00D1FF',
+  pink: '#FF6BCD',
+  lime: '#A3FF00',
+  teal: '#00FFD1',
+  orange: '#FF8C42',
+  blue: '#4D8CFF',
   muted: '#666666',
   white: '#F0F0F0',
 } as const;
@@ -105,6 +111,20 @@ export const BUBBLE_COLORS = {
   large: COLORS.danger,
   unknown: COLORS.muted,
 } as const;
+
+// Palette for value-tier coloring so bubbles are visually diverse
+export const VALUE_TIER_COLORS = [
+  COLORS.cyan,      // tier 0: dust / tiny
+  COLORS.accent,    // tier 1: small
+  COLORS.blue,      // tier 2: low-medium
+  COLORS.purple,    // tier 3: medium
+  COLORS.teal,      // tier 4: decent
+  COLORS.lime,      // tier 5: notable
+  COLORS.pink,      // tier 6: large
+  COLORS.amber,     // tier 7: big
+  COLORS.orange,    // tier 8: very big
+  COLORS.danger,    // tier 9: whale
+] as const;
 
 // WalletConnect project ID
 export const WALLETCONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '';
