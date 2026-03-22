@@ -2,22 +2,123 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #000000;
+  --surface: #0D0D0D;
+  --border: #1A1A1A;
+  --accent: #00FFA3;
+  --purple: #7B61FF;
+  --danger: #FF4D4D;
+  --amber: #FFB800;
+  --muted: #666666;
+  --white: #F0F0F0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1A1A1A #000000;
+}
+
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #1A1A1A;
+  border-radius: 2px;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--white);
+  background: var(--bg);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.font-grotesk {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Ticker marquee animation */
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker-scroll 60s linear infinite;
+}
+
+/* Slide down animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s ease-out;
+}
+
+/* Bubble spawn animation */
+@keyframes bubbleSpawn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-bubbleSpawn {
+  animation: bubbleSpawn 0.3s ease-out;
+}
+
+/* Block flash animation */
+@keyframes blockFlash {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+    color: #00FFA3;
+  }
+}
+
+.animate-blockFlash {
+  animation: blockFlash 0.3s ease-out;
+}
+
+/* Glow on hover */
+.glow-hover:hover {
+  box-shadow: 0 0 12px rgba(0, 255, 163, 0.15);
+}
+
+/* Duration override for drawer */
+.duration-250 {
+  transition-duration: 250ms;
 }
 
 @layer utilities {
