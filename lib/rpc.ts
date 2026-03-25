@@ -6,6 +6,7 @@ import {
 } from '@/constants/chain';
 
 const _net = getNetwork();
+let activeExplorerUrl = _net.explorer;
 
 function buildChain(config: NetworkConfig) {
   return defineChain({
@@ -37,6 +38,7 @@ export { publicClient };
 export function setActiveNetwork(config: NetworkConfig) {
   const chain = buildChain(config);
   publicClient = createPublicClient({ chain, transport: http(config.rpcHttp) });
+  activeExplorerUrl = config.explorer;
 }
 
 export async function getBalance(address: `0x${string}`): Promise<bigint> {
@@ -64,6 +66,56 @@ export async function getBlock(blockNumber?: bigint) {
 
 export async function getBlockNumber(): Promise<bigint> {
   return publicClient.getBlockNumber();
+}
+
+/** Fetch address transactions from the Blockscout v2 explorer API */
+export interface ExplorerTx {
+  hash: string;
+  blockNumber: number;
+  from: string;
+  to: string;
+  value: bigint;
+  timestamp: number;
+  method: string;
+  fee: string;
+  status: string;
+}
+
+export async function getExplorerTransactions(
+  address: string,
+  limit: number = 30
+): Promise<ExplorerTx[]> {
+  const baseUrl = activeExplorerUrl.replace(/\/$/, '');
+  const url = `${baseUrl}/api/v2/addresses/${address}/transactions`;
+
+  const res = await fetch(url, {
+    headers: { 'Accept': 'application/json' },
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!res.ok) throw new Error(`Explorer API ${res.status}`);
+  const data = await res.json();
+  const items = data?.items;
+  if (!Array.isArray(items)) throw new Error('Unexpected explorer response');
+
+  return items.slice(0, limit).map((item: Record<string, unknown>) => {
+    const fromObj = item.from as Record<string, string> | null;
+    const toObj = item.to as Record<string, string> | null;
+    const feeObj = item.fee as Record<string, string> | null;
+    const ts = item.timestamp as string | undefined;
+
+    return {
+      hash: (item.hash as string) || '',
+      blockNumber: Number(item.block_number ?? item.block ?? 0),
+      from: fromObj?.hash || '',
+      to: toObj?.hash || '',
+      value: BigInt((item.value as string) || '0'),
+      timestamp: ts ? new Date(ts).getTime() : Date.now(),
+      method: (item.method as string) || 'transfer',
+      fee: feeObj?.value || '0',
+      status: (item.status as string) || 'ok',
+    };
+  });
 }
 
 export async function getFirstInboundTransfer(

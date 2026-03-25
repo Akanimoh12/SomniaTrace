@@ -61,7 +61,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Links
 
 - **Live App:** [somniatrace.vercel.app](https://somniatrace.vercel.app)
-- **Demo Video:** [Watch on YouTube](https://youtube.com)
+- **Demo Video:** [Watch on Loom](https://www.loom.com/share/aeb67db1c35b42cc84ef07bad08bb1dd)
 
 ## License
 

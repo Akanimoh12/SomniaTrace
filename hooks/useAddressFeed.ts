@@ -10,7 +10,7 @@ import {
 import type { ReactivityEvent } from '@/types/reactivity';
 import type { TxEvent } from '@/types/transaction';
 import { addressToTopic, topicToAddress, weiToUSD } from '@/lib/formatters';
-import { getRecentTransferLogs, getRecentNativeTransfers } from '@/lib/rpc';
+import { getRecentTransferLogs, getRecentNativeTransfers, getExplorerTransactions } from '@/lib/rpc';
 
 export function useAddressFeed(
   address: string | null,
@@ -22,6 +22,12 @@ export function useAddressFeed(
   const [events, setEvents] = useState<TxEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
+
+  // Use refs so the async fetchHistory always calls the latest callbacks
+  const onTxRef = useRef(onTransaction);
+  onTxRef.current = onTransaction;
+  const onBatchRef = useRef(onBatchLoad);
+  onBatchRef.current = onBatchLoad;
 
   const parseEvent = useCallback((event: ReactivityEvent, watchAddr: string): TxEvent | null => {
     if (!event.topics || event.topics.length < 3) return null;
@@ -71,7 +77,42 @@ export function useAddressFeed(
 
     const fetchHistory = async () => {
       try {
-        // Fetch ERC-20 logs and native STT transfers in parallel
+        // PRIMARY: Use the block explorer API (indexed, fast, finds all tx types)
+        const explorerTxs = await getExplorerTransactions(address, 25).catch(() => null);
+
+        if (explorerTxs && explorerTxs.length > 0) {
+          const txEvents: TxEvent[] = explorerTxs.map((etx) => {
+            const isIncoming = etx.to.toLowerCase() === address.toLowerCase();
+            const val = etx.value;
+            const isNative = val > 0n && etx.method === 'transfer';
+
+            return {
+              hash: etx.hash,
+              blockNumber: etx.blockNumber,
+              timestamp: etx.timestamp,
+              from: etx.from,
+              to: etx.to,
+              value: val,
+              valueUSD: weiToUSD(val, 18, 0.01),
+              token: isNative ? 'native' : etx.to,
+              tokenSymbol: isNative ? 'STT' : (etx.method || 'TX'),
+              type: 'stt' as const,
+              direction: isIncoming ? 'incoming' as const : 'outgoing' as const,
+            };
+          });
+
+          setEvents(txEvents);
+          setIsLoading(false);
+          setIsEmpty(false);
+          if (onBatchRef.current) {
+            onBatchRef.current(txEvents);
+          } else {
+            txEvents.forEach(tx => onTxRef.current?.(tx));
+          }
+          return;
+        }
+
+        // FALLBACK: RPC-based scanning (ERC-20 logs + native block scan)
         const [logs, nativeTxs] = await Promise.all([
           getRecentTransferLogs(address as `0x${string}`, 20),
           getRecentNativeTransfers(address as `0x${string}`, 20),
@@ -140,10 +181,10 @@ export function useAddressFeed(
         } else {
           setIsEmpty(false);
           // Batch-load all at once for instant bubble display
-          if (onBatchLoad) {
-            onBatchLoad(txEvents);
+          if (onBatchRef.current) {
+            onBatchRef.current(txEvents);
           } else {
-            txEvents.forEach(tx => onTransaction?.(tx));
+            txEvents.forEach(tx => onTxRef.current?.(tx));
           }
         }
       } catch (err) {
@@ -174,7 +215,7 @@ export function useAddressFeed(
             const tx = parseEvent(event, address);
             if (tx) {
               setEvents(prev => [tx, ...prev].slice(0, 20));
-              onTransaction?.(tx);
+              onTxRef.current?.(tx);
             }
           }
         );
@@ -187,7 +228,7 @@ export function useAddressFeed(
             const tx = parseEvent(event, address);
             if (tx) {
               setEvents(prev => [tx, ...prev].slice(0, 20));
-              onTransaction?.(tx);
+              onTxRef.current?.(tx);
             }
           }
         );
@@ -209,7 +250,7 @@ export function useAddressFeed(
       }
       subIdsRef.current = [];
     };
-  }, [address, subscribe, unsubscribe, parseEvent, onTransaction]);
+  }, [address, subscribe, unsubscribe, parseEvent]);
 
   return { events, isLoading, isEmpty };
 }
